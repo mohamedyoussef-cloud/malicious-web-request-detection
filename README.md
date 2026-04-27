@@ -1,6 +1,6 @@
 # Malicious Web Request Detection
 
-A simple Streamlit application that detects whether a URL or web request looks benign or malicious.
+A machine learning notebook and Streamlit project for detecting suspicious web requests and URLs.
 
 ## Features
 
