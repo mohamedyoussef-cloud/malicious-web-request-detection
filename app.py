@@ -1,19 +1,22 @@
 import streamlit as st
 from detector import predict_url
 
+
 st.set_page_config(
     page_title="Malicious Web Request Detection",
     page_icon="🛡️",
     layout="centered"
 )
 
-st.title("🛡️ Malicious Web Request Detection")
-st.caption("Simple URL risk detection using lightweight machine learning.")
+
+st.title("Malicious Web Request Detection")
+
 
 url = st.text_input(
     "Enter a URL or web request:",
     placeholder="https://example.com/search?q=test"
 )
+
 
 if st.button("Analyze URL", use_container_width=True):
     if not url.strip():
@@ -22,24 +25,32 @@ if st.button("Analyze URL", use_container_width=True):
         try:
             result = predict_url(url)
 
-            if result["is_malicious"]:
-                st.error("Malicious Request Detected")
-            else:
-                st.success("Safe Request")
+            label = result.get("label", "Unknown")
 
-            st.metric("Risk Score", result["confidence"])
+            if label == "Safe":
+                st.success("Safe Request")
+            elif label == "Phishing":
+                st.warning("Phishing Request Detected")
+            elif label == "Defacement":
+                st.error("Defacement Detected")
+            else:
+                st.error("Malicious Request Detected")
+
+            st.metric("Risk Score", result.get("confidence", 0))
+
+            st.write("### Detection Type")
+            st.write(label)
 
             st.write("### Reasons")
-            for reason in result["reasons"]:
+            for reason in result.get("reasons", []):
                 st.write(f"- {reason}")
 
             with st.expander("Technical Features"):
-                st.json(result["features"])
+                st.json(result.get("features", {}))
 
-        except FileNotFoundError:
-            st.error("Model file not found. Run train_model.py first, then upload models/malicious_url_model.joblib.")
         except Exception as e:
             st.error(f"Error: {e}")
 
+
 st.divider()
-st.caption("This tool is a detection aid, not a replacement for a real WAF.")
+st.caption("Project")
