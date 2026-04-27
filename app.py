@@ -53,4 +53,4 @@ if st.button("Analyze URL", use_container_width=True):
 
 
 st.divider()
-st.caption("Project")
+st.caption("This tool is a detection Project, not a replacement for a real WAF.")
