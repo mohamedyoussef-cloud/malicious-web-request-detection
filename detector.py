@@ -8,9 +8,6 @@ MODEL_PATH = "models/malicious_url_model.joblib"
 THRESHOLD = 0.35
 
 
-# =========================
-# Utility
-# =========================
 def entropy(text):
     if not text:
         return 0
@@ -34,26 +31,20 @@ def features(url):
         "path": parsed.path,
         "entropy": round(entropy(raw), 3),
         "has_ip": bool(re.search(r"\d+\.\d+\.\d+\.\d+", raw)),
-        "special_ratio": sum(not c.isalnum() for c in raw) / max(len(raw), 1),
+        "special_ratio": round(sum(not c.isalnum() for c in raw) / max(len(raw), 1), 3),
     }
 
 
-# =========================
-# ML
-# =========================
 def get_ml_score(url):
     if not os.path.exists(MODEL_PATH):
         return None
     try:
         model = joblib.load(MODEL_PATH)
         return float(model["pipeline"].predict_proba([url])[0][1])
-    except:
+    except Exception:
         return None
 
 
-# =========================
-# Malicious Detection
-# =========================
 def detect_malicious(url):
     decoded = unquote(url).lower()
     score = 0
@@ -61,7 +52,7 @@ def detect_malicious(url):
 
     patterns = [
         (r"union\s+select", 0.4, "SQL injection"),
-        (r"or\s+1=1", 0.4, "SQL bypass"),
+        (r"or\s+1\s*=\s*1", 0.4, "SQL bypass"),
         (r"<script", 0.4, "XSS"),
         (r"\.\./", 0.4, "Path traversal"),
         (r"cmd=|exec=|system\(", 0.4, "Command injection"),
@@ -76,9 +67,6 @@ def detect_malicious(url):
     return min(score, 1.0), reasons
 
 
-# =========================
-# Defacement Detection
-# =========================
 def detect_defacement(url):
     decoded = unquote(url).lower()
     score = 0
@@ -99,9 +87,6 @@ def detect_defacement(url):
     return min(score, 1.0), reasons
 
 
-# =========================
-# Phishing Detection
-# =========================
 def detect_phishing(url):
     decoded = unquote(url).lower()
     score = 0
@@ -113,9 +98,14 @@ def detect_phishing(url):
         "update", "confirm", "signin", "free"
     ]
 
+    found = []
     for word in phishing_keywords:
         if word in decoded:
             score += 0.1
+            found.append(word)
+
+    if found:
+        reasons.append("Phishing keywords found: " + ", ".join(found[:5]))
 
     if re.search(r"\d+\.\d+\.\d+\.\d+", url):
         score += 0.3
@@ -123,7 +113,7 @@ def detect_phishing(url):
 
     if url.count("-") > 3:
         score += 0.2
-        reasons.append("Too many dashes in domain")
+        reasons.append("Too many dashes in URL")
 
     if len(url) > 120:
         score += 0.2
@@ -136,11 +126,8 @@ def detect_phishing(url):
     return min(score, 1.0), reasons
 
 
-# =========================
-# Main Prediction
-# =========================
 def predict_url(url):
-    if not url.strip():
+    if not str(url).strip():
         raise ValueError("Empty URL")
 
     f = features(url)
@@ -154,8 +141,7 @@ def predict_url(url):
     if ml_score is not None:
         mal_score = max(mal_score, ml_score)
 
-    # Decision
-    if def_score >= THRESHOLD and def_score >= mal_score:
+    if def_score >= THRESHOLD and def_score >= mal_score and def_score >= phish_score:
         label = "Defacement"
         score = def_score
         reasons = def_r
@@ -168,7 +154,7 @@ def predict_url(url):
     elif mal_score >= THRESHOLD:
         label = "Malicious"
         score = mal_score
-        reasons = mal_r
+        reasons = mal_r if mal_r else ["ML model detected suspicious behavior"]
 
     else:
         label = "Safe"
@@ -178,11 +164,13 @@ def predict_url(url):
     return {
         "url": url,
         "label": label,
+        "is_malicious": label in ["Malicious", "Defacement", "Phishing"],
         "confidence": round(score, 3),
-        "ml_score": ml_score,
-        "malicious_score": mal_score,
-        "defacement_score": def_score,
-        "phishing_score": phish_score,
+        "ml_score": round(ml_score, 3) if ml_score is not None else None,
+        "malicious_score": round(mal_score, 3),
+        "defacement_score": round(def_score, 3),
+        "phishing_score": round(phish_score, 3),
+        "threshold": THRESHOLD,
         "features": f,
         "reasons": reasons,
     }
